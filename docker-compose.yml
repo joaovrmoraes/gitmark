@@ -1,0 +1,17 @@
+services:
+  api:
+    build: ./backend
+    environment:
+      PORT: "8080"
+      CORS_ORIGIN: "http://localhost:3000"
+      MOCK_USER: "${MOCK_USER:-joaovrmoraes}"
+      GITHUB_TOKEN: "${GITHUB_TOKEN:-}"
+    ports:
+      - "8080:8080"
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "3000:80"

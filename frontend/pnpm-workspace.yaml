@@ -1,0 +1,4 @@
+# pnpm v9+ build-script approval (moved out of package.json).
+# esbuild ships a native binary via its install script — vite needs it.
+allowBuilds:
+  esbuild: true
