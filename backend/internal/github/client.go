@@ -18,16 +18,20 @@ import (
 // call takes the caller's OAuth token so requests run as the logged-in user
 // (private repos, per-user rate limits).
 type Client struct {
-	api   string
-	http  *http.Client
-	cache cache.Store
+	api     string
+	http    *http.Client
+	rawHTTP *http.Client
+	cache   cache.Store
 }
 
 func NewClient(api string, store cache.Store) *Client {
 	return &Client{
-		api:   strings.TrimRight(api, "/"),
-		http:  &http.Client{Timeout: 15 * time.Second},
-		cache: store,
+		api:  strings.TrimRight(api, "/"),
+		http: &http.Client{Timeout: 15 * time.Second},
+		// Raw files (PDFs) can be tens of MB — give them a longer budget and
+		// stream them instead of buffering.
+		rawHTTP: &http.Client{Timeout: 120 * time.Second},
+		cache:   store,
 	}
 }
 
@@ -167,15 +171,44 @@ func (c *Client) Content(ctx context.Context, token, owner, repo, filePath, bran
 	return &FileContent{Path: filePath, Content: string(body)}, nil
 }
 
-// RawBytes returns a file's raw bytes (for binary files like PDFs). Not cached —
-// blobs can be large and we don't want to bloat the in-memory store.
-func (c *Client) RawBytes(ctx context.Context, token, owner, repo, filePath, branch string) ([]byte, error) {
-	p := fmt.Sprintf("/repos/%s/%s/contents/%s",
-		url.PathEscape(owner), url.PathEscape(repo), encodePath(filePath))
-	if branch != "" {
-		p += "?ref=" + url.QueryEscape(branch)
+// RawStream fetches a file's raw bytes for streaming to the client. It prefers
+// the Git Blobs API (handles files up to 100 MB — the Contents API caps at
+// 1 MB and 403s "too large" on bigger files like PDFs). The caller must close
+// the returned response body.
+func (c *Client) RawStream(ctx context.Context, token, owner, repo, sha, filePath, branch string) (*http.Response, error) {
+	var p string
+	if sha != "" {
+		p = fmt.Sprintf("/repos/%s/%s/git/blobs/%s",
+			url.PathEscape(owner), url.PathEscape(repo), url.PathEscape(sha))
+	} else {
+		p = fmt.Sprintf("/repos/%s/%s/contents/%s",
+			url.PathEscape(owner), url.PathEscape(repo), encodePath(filePath))
+		if branch != "" {
+			p += "?ref=" + url.QueryEscape(branch)
+		}
 	}
-	return c.get(ctx, token, p, "application/vnd.github.raw+json")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.api+p, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.raw")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "GitMark")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	res, err := c.rawHTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode >= 400 {
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		return nil, &APIError{Status: res.StatusCode, Message: upstreamMessage(body)}
+	}
+	return res, nil
 }
 
 func (c *Client) defaultBranch(ctx context.Context, token, owner, repo string) (string, error) {

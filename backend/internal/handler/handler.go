@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -223,20 +224,30 @@ func (h *Handler) Content(c *gin.Context) {
 }
 
 // Raw streams a file's raw bytes (used for PDFs and other binaries the reader
-// renders directly, e.g. via pdf.js).
+// renders directly, e.g. via pdf.js). Streams straight through so large files
+// don't get buffered in memory.
 func (h *Handler) Raw(c *gin.Context) {
 	owner, repo, path := c.Query("owner"), c.Query("repo"), c.Query("path")
-	if owner == "" || repo == "" || path == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "owner, repo and path are required"})
+	sha := c.Query("sha")
+	if owner == "" || repo == "" || (path == "" && sha == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "owner, repo and (path or sha) are required"})
 		return
 	}
-	body, err := h.gh.RawBytes(c.Request.Context(), c.GetString("token"), owner, repo, path, c.Query("branch"))
+	res, err := h.gh.RawStream(c.Request.Context(), c.GetString("token"), owner, repo, sha, path, c.Query("branch"))
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	c.Header("Cache-Control", "private, max-age=300")
-	c.Data(http.StatusOK, contentType(path), body)
+	defer res.Body.Close()
+
+	contentLength := int64(-1)
+	if cl := res.Header.Get("Content-Length"); cl != "" {
+		if n, e := strconv.ParseInt(cl, 10, 64); e == nil {
+			contentLength = n
+		}
+	}
+	c.DataFromReader(http.StatusOK, contentLength, contentType(path), res.Body,
+		map[string]string{"Cache-Control": "private, max-age=300"})
 }
 
 func contentType(path string) string {

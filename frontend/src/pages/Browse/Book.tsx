@@ -26,6 +26,7 @@ export function Book() {
   const [contentsOpen, setContentsOpen] = useState(false)
 
   const isPdf = !!path && /\.pdf$/i.test(path)
+  const pdfSha = isPdf ? tree.data?.find((n) => n.path === path)?.sha : undefined
 
   // Keep latest paging fns + mode in refs so the key handler never goes stale.
   const nav = useRef({ goNext, goPrev, isPdf })
@@ -93,7 +94,7 @@ export function Book() {
       {isPdf ? (
         /* PDF: paged pdf.js reader (owns its own paging + footer), lazy-loaded */
         <Suspense fallback={<Spinner label="Loading PDF reader…" />}>
-          <PdfReader key={path} url={rawUrl(owner, repo, path!)} />
+          <PdfReader key={path} url={rawUrl(owner, repo, path!, { sha: pdfSha })} />
         </Suspense>
       ) : (
         <>
