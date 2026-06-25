@@ -178,6 +178,22 @@ func (h *Handler) ListRepos(c *gin.Context) {
 	c.JSON(http.StatusOK, repos)
 }
 
+// GetRepo returns metadata for one repo — used when adding a vault by link
+// (works for any public repo, or private ones the user can read).
+func (h *Handler) GetRepo(c *gin.Context) {
+	owner, repo := c.Query("owner"), c.Query("repo")
+	if owner == "" || repo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "owner and repo are required"})
+		return
+	}
+	r, err := h.gh.GetRepo(c.Request.Context(), c.GetString("token"), owner, repo)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, r)
+}
+
 func (h *Handler) Tree(c *gin.Context) {
 	owner, repo := c.Query("owner"), c.Query("repo")
 	if owner == "" || repo == "" {

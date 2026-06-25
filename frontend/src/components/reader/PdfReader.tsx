@@ -4,11 +4,10 @@ import { clsx } from 'clsx'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 
-// Bundle the pdf.js worker via Vite so it works offline/same-origin.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString()
+// The worker is copied into /public by the predev/prebuild script (see
+// scripts/copy-pdf-worker.mjs), kept in sync with the installed pdfjs-dist.
+// Serving it as a plain static asset avoids bundler resolution flakiness.
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 const SWIPE_THRESHOLD = 55
 

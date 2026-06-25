@@ -5,7 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@11.8.0",
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit"
@@ -15,6 +17,7 @@
     "clsx": "^2.0.0",
     "highlight.js": "^11.9.0",
     "lucide-react": "^0.400.0",
+    "pdfjs-dist": "5.4.296",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-markdown": "^9.0.1",

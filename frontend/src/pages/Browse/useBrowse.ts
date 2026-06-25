@@ -14,8 +14,11 @@ export function useBrowse() {
   const path = params.get('path')
   const [dir, setDir] = useState<PageDir>(null)
 
+  const isPdf = path ? /\.pdf$/i.test(path) : false
   const tree = useTree(owner, repo)
-  const content = useContent(owner, repo, path)
+  // PDFs are rendered straight from /proxy/raw by pdf.js — don't fetch them as
+  // markdown text.
+  const content = useContent(owner, repo, isPdf ? null : path)
 
   // Ordered "pages" = every markdown file, in tree order.
   const pages = useMemo(

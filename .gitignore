@@ -18,3 +18,4 @@ test-results/
 .demo/
 .demo-mobile/
 *.webm
+frontend/public/pdf.worker.min.mjs

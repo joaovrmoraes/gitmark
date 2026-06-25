@@ -24,6 +24,7 @@ func New(h *handler.Handler, cfg config.Config) *gin.Engine {
 	{
 		authed.GET("/me", h.Me)
 		authed.GET("/proxy/repos", h.ListRepos)
+		authed.GET("/proxy/repo", h.GetRepo)
 		authed.GET("/proxy/tree", h.Tree)
 		authed.GET("/proxy/content", h.Content)
 		authed.GET("/proxy/raw", h.Raw)

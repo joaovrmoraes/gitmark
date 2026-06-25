@@ -69,6 +69,30 @@ func (c *Client) ListAuthedRepos(ctx context.Context, token string) ([]Repo, err
 	return decodeRepos(body)
 }
 
+// GetRepo returns metadata for a single repo (used when adding a vault by
+// link — works for any public repo, or private ones the token can read).
+func (c *Client) GetRepo(ctx context.Context, token, owner, repo string) (*Repo, error) {
+	body, err := c.get(ctx, token, fmt.Sprintf("/repos/%s/%s", url.PathEscape(owner), url.PathEscape(repo)), "")
+	if err != nil {
+		return nil, err
+	}
+	var r ghRepo
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, err
+	}
+	return &Repo{
+		ID:            r.ID,
+		Name:          r.Name,
+		FullName:      r.FullName,
+		Owner:         r.Owner.Login,
+		Description:   r.Description,
+		Private:       r.Private,
+		DefaultBranch: r.DefaultBranch,
+		UpdatedAt:     r.UpdatedAt,
+		Stars:         r.StargazersCnt,
+	}, nil
+}
+
 // ListRepos returns a specific user's public repositories.
 func (c *Client) ListRepos(ctx context.Context, token, owner string) ([]Repo, error) {
 	path := fmt.Sprintf("/users/%s/repos?sort=updated&per_page=100", url.PathEscape(owner))
