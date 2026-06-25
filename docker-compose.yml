@@ -1,6 +1,9 @@
-# Single-domain deployment: the `web` (nginx) serves the SPA and reverse-proxies
-# /auth, /proxy, /me, /healthz to the `api`. Point your domain at `web` (port 80);
-# Coolify terminates TLS and forwards X-Forwarded-Proto=https.
+# Single-domain deployment on Coolify.
+#
+# The `web` (nginx) serves the SPA and reverse-proxies /auth, /proxy, /me and
+# /healthz to the internal `api`. Only `web` is exposed publicly — the domain
+# is pinned to it via Coolify's SERVICE_FQDN_* convention, so the bare domain
+# always hits nginx (which serves index.html), never the Go backend directly.
 services:
   api:
     build: ./backend
@@ -16,8 +19,11 @@ services:
 
   web:
     build: ./frontend
+    environment:
+      # Coolify pins the public domain to THIS service, on its port 80.
+      SERVICE_FQDN_WEB_80: https://gitmark.joaovrmoraes.dev
     depends_on:
       - api
-    ports:
-      - "3000:80"
+    expose:
+      - "80"
     restart: unless-stopped
