@@ -1,9 +1,15 @@
 # ---- build ----
 FROM node:22-alpine AS build
-RUN corepack enable
+# Skip Playwright's browser download — it's a dev-only dep (demo recording),
+# not needed to build the app, and downloading Chromium would break the build.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# Pin pnpm directly (avoids corepack signature issues on newer pnpm versions).
+RUN npm install -g pnpm@11.8.0
 WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile || pnpm install
+# pnpm-workspace.yaml carries `allowBuilds: esbuild` — it MUST be present at
+# install time or esbuild's native binary is skipped and `pnpm build` fails.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
