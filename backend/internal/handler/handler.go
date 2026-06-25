@@ -51,7 +51,7 @@ func (h *Handler) AuthGitHub(c *gin.Context) {
 	}
 	state := randomHex(16)
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(stateCookie, state, 600, "/", "", false, true)
+	c.SetCookie(stateCookie, state, 600, "/", "", h.secure(c), true)
 
 	q := url.Values{}
 	q.Set("client_id", h.cfg.GitHubClientID)
@@ -69,7 +69,7 @@ func (h *Handler) AuthCallback(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid OAuth state"})
 		return
 	}
-	c.SetCookie(stateCookie, "", -1, "/", "", false, true)
+	c.SetCookie(stateCookie, "", -1, "/", "", h.secure(c), true)
 
 	code := c.Query("code")
 	if code == "" {
@@ -99,7 +99,7 @@ func (h *Handler) AuthCallback(c *gin.Context) {
 	}
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(sessionCookie, id, sessionMaxAge, "/", "", false, true)
+	c.SetCookie(sessionCookie, id, sessionMaxAge, "/", "", h.secure(c), true)
 	c.Redirect(http.StatusFound, h.cfg.FrontendURL+"/repos")
 }
 
@@ -107,7 +107,7 @@ func (h *Handler) Logout(c *gin.Context) {
 	if id, _ := c.Cookie(sessionCookie); id != "" {
 		h.sessions.Delete(id)
 	}
-	c.SetCookie(sessionCookie, "", -1, "/", "", false, true)
+	c.SetCookie(sessionCookie, "", -1, "/", "", h.secure(c), true)
 	c.Status(http.StatusNoContent)
 }
 
@@ -226,10 +226,16 @@ func (h *Handler) RequireSession(c *gin.Context) {
 
 func (h *Handler) callbackURL(c *gin.Context) string {
 	scheme := "http"
-	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+	if h.secure(c) {
 		scheme = "https"
 	}
 	return scheme + "://" + c.Request.Host + "/auth/callback"
+}
+
+// secure reports whether the request reached us over HTTPS (directly or via a
+// TLS-terminating proxy like the Coolify edge). Drives the cookie Secure flag.
+func (h *Handler) secure(c *gin.Context) bool {
+	return c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 }
 
 // fail mirrors an upstream GitHub status when available, else 502.
