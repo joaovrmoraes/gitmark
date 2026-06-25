@@ -206,6 +206,30 @@ func (h *Handler) Content(c *gin.Context) {
 	c.JSON(http.StatusOK, content)
 }
 
+// Raw streams a file's raw bytes (used for PDFs and other binaries the reader
+// renders directly, e.g. via pdf.js).
+func (h *Handler) Raw(c *gin.Context) {
+	owner, repo, path := c.Query("owner"), c.Query("repo"), c.Query("path")
+	if owner == "" || repo == "" || path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "owner, repo and path are required"})
+		return
+	}
+	body, err := h.gh.RawBytes(c.Request.Context(), c.GetString("token"), owner, repo, path, c.Query("branch"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=300")
+	c.Data(http.StatusOK, contentType(path), body)
+}
+
+func contentType(path string) string {
+	if strings.HasSuffix(strings.ToLower(path), ".pdf") {
+		return "application/pdf"
+	}
+	return "application/octet-stream"
+}
+
 // RequireSession loads the session from the cookie and aborts with 401 when
 // absent. On success the token + user are attached to the context.
 func (h *Handler) RequireSession(c *gin.Context) {

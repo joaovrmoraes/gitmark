@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, List, Type, Library } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Spinner } from '@/components/ui/Spinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Markdown } from '@/components/reader/Markdown'
+import { rawUrl } from '@/http/raw'
+
+// pdf.js is heavy — only load it when a PDF is actually opened.
+const PdfReader = lazy(() =>
+  import('@/components/reader/PdfReader').then((m) => ({ default: m.PdfReader })),
+)
 import { useTheme, type Theme } from '@/lib/theme'
 import { useBrowse } from './useBrowse'
 import { Contents } from './Contents'
@@ -19,12 +25,16 @@ export function Book() {
     useBrowse()
   const [contentsOpen, setContentsOpen] = useState(false)
 
-  // Keep latest paging fns in refs so the key handler never goes stale.
-  const nav = useRef({ goNext, goPrev })
-  nav.current = { goNext, goPrev }
+  const isPdf = !!path && /\.pdf$/i.test(path)
+
+  // Keep latest paging fns + mode in refs so the key handler never goes stale.
+  const nav = useRef({ goNext, goPrev, isPdf })
+  nav.current = { goNext, goPrev, isPdf }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // PDFs page internally — PdfReader owns the arrow keys there.
+      if (nav.current.isPdf) return
       if (e.key === 'ArrowRight') nav.current.goNext()
       else if (e.key === 'ArrowLeft') nav.current.goPrev()
     }
@@ -80,80 +90,89 @@ export function Book() {
         </div>
       </header>
 
-      {/* Page */}
-      <div
-        data-reader-page
-        className="relative min-h-0 flex-1 overflow-y-auto"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        {/* Edge page-turn zones (desktop) */}
-        {hasPrev && (
-          <button
-            onClick={goPrev}
-            aria-label="Previous page"
-            className="group absolute inset-y-0 left-0 z-10 hidden w-16 items-center justify-center md:flex"
+      {isPdf ? (
+        /* PDF: paged pdf.js reader (owns its own paging + footer), lazy-loaded */
+        <Suspense fallback={<Spinner label="Loading PDF reader…" />}>
+          <PdfReader key={path} url={rawUrl(owner, repo, path!)} />
+        </Suspense>
+      ) : (
+        <>
+          {/* Page */}
+          <div
+            data-reader-page
+            className="relative min-h-0 flex-1 overflow-y-auto"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
           >
-            <ChevronLeft size={22} className="text-mute opacity-0 transition-opacity group-hover:opacity-100" />
-          </button>
-        )}
-        {hasNext && (
-          <button
-            onClick={goNext}
-            aria-label="Next page"
-            className="group absolute inset-y-0 right-0 z-10 hidden w-16 items-center justify-center md:flex"
-          >
-            <ChevronRight size={22} className="text-mute opacity-0 transition-opacity group-hover:opacity-100" />
-          </button>
-        )}
+            {/* Edge page-turn zones (desktop) */}
+            {hasPrev && (
+              <button
+                onClick={goPrev}
+                aria-label="Previous page"
+                className="group absolute inset-y-0 left-0 z-10 hidden w-16 items-center justify-center md:flex"
+              >
+                <ChevronLeft size={22} className="text-mute opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
+            {hasNext && (
+              <button
+                onClick={goNext}
+                aria-label="Next page"
+                className="group absolute inset-y-0 right-0 z-10 hidden w-16 items-center justify-center md:flex"
+              >
+                <ChevronRight size={22} className="text-mute opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
 
-        <div className="px-6 py-10 md:px-8 md:py-14">
-          {tree.isLoading && <Spinner label="Opening the book…" />}
-          {content.isLoading && !content.data && <Spinner label="Turning the page…" />}
-          {content.error && (
-            <EmptyState title="Couldn't load this page" description={(content.error as Error).message} />
-          )}
-          {content.data && (
-            <div
-              key={path}
-              className={clsx(
-                'mx-auto max-w-2xl',
-                dir === 'next' && 'page-next',
-                dir === 'prev' && 'page-prev',
+            <div className="px-6 py-10 md:px-8 md:py-14">
+              {tree.isLoading && <Spinner label="Opening the book…" />}
+              {content.isLoading && !content.data && <Spinner label="Turning the page…" />}
+              {content.error && (
+                <EmptyState title="Couldn't load this page" description={(content.error as Error).message} />
               )}
-            >
-              <Markdown content={content.data.content} />
+              {content.data && (
+                <div
+                  key={path}
+                  className={clsx(
+                    'mx-auto max-w-2xl',
+                    dir === 'next' && 'page-next',
+                    dir === 'prev' && 'page-prev',
+                  )}
+                >
+                  <Markdown content={content.data.content} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Footer: page progress */}
-      {total > 0 && index >= 0 && (
-        <footer className="shrink-0 border-t border-hairline">
-          <div className="h-0.5 bg-canvas-soft-2">
-            <div className="h-full bg-ink transition-all duration-300" style={{ width: `${progress}%` }} />
-          </div>
-          <div className="flex items-center justify-between px-4 py-2.5 md:px-6">
-            <button
-              onClick={goPrev}
-              disabled={!hasPrev}
-              className="rounded-md px-2 py-1 text-xs text-mute transition-colors enabled:hover:text-ink disabled:opacity-30"
-            >
-              ← Prev
-            </button>
-            <span className="truncate px-2 text-center text-xs text-body">
-              {pageName} <span className="text-mute">· {index + 1} of {total}</span>
-            </span>
-            <button
-              onClick={goNext}
-              disabled={!hasNext}
-              className="rounded-md px-2 py-1 text-xs text-mute transition-colors enabled:hover:text-ink disabled:opacity-30"
-            >
-              Next →
-            </button>
-          </div>
-        </footer>
+          {/* Footer: page progress */}
+          {total > 0 && index >= 0 && (
+            <footer className="shrink-0 border-t border-hairline">
+              <div className="h-0.5 bg-canvas-soft-2">
+                <div className="h-full bg-ink transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 md:px-6">
+                <button
+                  onClick={goPrev}
+                  disabled={!hasPrev}
+                  className="rounded-md px-2 py-1 text-xs text-mute transition-colors enabled:hover:text-ink disabled:opacity-30"
+                >
+                  ← Prev
+                </button>
+                <span className="truncate px-2 text-center text-xs text-body">
+                  {pageName} <span className="text-mute">· {index + 1} of {total}</span>
+                </span>
+                <button
+                  onClick={goNext}
+                  disabled={!hasNext}
+                  className="rounded-md px-2 py-1 text-xs text-mute transition-colors enabled:hover:text-ink disabled:opacity-30"
+                >
+                  Next →
+                </button>
+              </div>
+            </footer>
+          )}
+        </>
       )}
 
       <Contents

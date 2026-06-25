@@ -112,7 +112,7 @@ func (c *Client) Tree(ctx context.Context, token, owner, repo, branch string) ([
 
 	nodes := make([]TreeNode, 0, len(raw.Tree))
 	for _, e := range raw.Tree {
-		if e.Type == "tree" || isMarkdown(e.Path) {
+		if e.Type == "tree" || isReadable(e.Path) {
 			nodes = append(nodes, TreeNode{Path: e.Path, Type: e.Type, Size: e.Size, SHA: e.SHA})
 		}
 	}
@@ -141,6 +141,17 @@ func (c *Client) Content(ctx context.Context, token, owner, repo, filePath, bran
 
 	c.cache.Set(key, body, 10*time.Minute)
 	return &FileContent{Path: filePath, Content: string(body)}, nil
+}
+
+// RawBytes returns a file's raw bytes (for binary files like PDFs). Not cached —
+// blobs can be large and we don't want to bloat the in-memory store.
+func (c *Client) RawBytes(ctx context.Context, token, owner, repo, filePath, branch string) ([]byte, error) {
+	p := fmt.Sprintf("/repos/%s/%s/contents/%s",
+		url.PathEscape(owner), url.PathEscape(repo), encodePath(filePath))
+	if branch != "" {
+		p += "?ref=" + url.QueryEscape(branch)
+	}
+	return c.get(ctx, token, p, "application/vnd.github.raw+json")
 }
 
 func (c *Client) defaultBranch(ctx context.Context, token, owner, repo string) (string, error) {
@@ -241,6 +252,16 @@ func upstreamMessage(body []byte) string {
 func isMarkdown(p string) bool {
 	lp := strings.ToLower(p)
 	return strings.HasSuffix(lp, ".md") || strings.HasSuffix(lp, ".markdown")
+}
+
+func isPDF(p string) bool {
+	return strings.HasSuffix(strings.ToLower(p), ".pdf")
+}
+
+// isReadable reports whether a file is something GitMark can open (markdown or
+// PDF). Everything else is hidden from the tree.
+func isReadable(p string) bool {
+	return isMarkdown(p) || isPDF(p)
 }
 
 // encodePath escapes each path segment but keeps the slashes the contents
