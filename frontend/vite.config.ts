@@ -11,6 +11,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      workbox: {
+        // Don't let the SPA navigation fallback swallow backend routes —
+        // /auth/* is a full-page navigation (OAuth redirect) and MUST hit the
+        // network, not be served index.html from cache.
+        navigateFallbackDenylist: [/^\/auth/, /^\/proxy/, /^\/me$/, /^\/healthz$/],
+      },
       manifest: {
         name: 'GitMark — read your vault',
         short_name: 'GitMark',
