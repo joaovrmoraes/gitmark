@@ -9,6 +9,9 @@ import (
 
 func New(h *handler.Handler, cfg config.Config) *gin.Engine {
 	r := gin.New()
+	// We sit behind a single trusted reverse proxy (nginx/Coolify); don't infer
+	// client IPs from arbitrary forwarded headers.
+	_ = r.SetTrustedProxies(nil)
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS(cfg.FrontendURL))
 

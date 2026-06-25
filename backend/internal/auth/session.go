@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"sync"
+	"time"
 )
 
 // User is the authenticated GitHub identity surfaced to the frontend.
@@ -23,13 +24,23 @@ type Session struct {
 	User  User
 }
 
+// TTL bounds how long a session is valid server-side (mirrors the cookie).
+const TTL = 7 * 24 * time.Hour
+
+type stored struct {
+	sess      Session
+	expiresAt time.Time
+}
+
 type Store struct {
 	mu sync.RWMutex
-	m  map[string]Session
+	m  map[string]stored
 }
 
 func NewStore() *Store {
-	return &Store{m: make(map[string]Session)}
+	s := &Store{m: make(map[string]stored)}
+	go s.reap()
+	return s
 }
 
 func (s *Store) Create(sess Session) (string, error) {
@@ -38,16 +49,35 @@ func (s *Store) Create(sess Session) (string, error) {
 		return "", err
 	}
 	s.mu.Lock()
-	s.m[id] = sess
+	s.m[id] = stored{sess: sess, expiresAt: time.Now().Add(TTL)}
 	s.mu.Unlock()
 	return id, nil
 }
 
 func (s *Store) Get(id string) (Session, bool) {
 	s.mu.RLock()
-	sess, ok := s.m[id]
+	e, ok := s.m[id]
 	s.mu.RUnlock()
-	return sess, ok
+	if !ok || time.Now().After(e.expiresAt) {
+		return Session{}, false
+	}
+	return e.sess, true
+}
+
+// reap evicts expired sessions so the map can't grow unbounded.
+func (s *Store) reap() {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for range t.C {
+		now := time.Now()
+		s.mu.Lock()
+		for id, e := range s.m {
+			if now.After(e.expiresAt) {
+				delete(s.m, id)
+			}
+		}
+		s.mu.Unlock()
+	}
 }
 
 func (s *Store) Delete(id string) {
