@@ -5,6 +5,16 @@ All notable changes to GitMark are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] — 2026-06-26
+
+### Fixed
+- **"404 after deploy"** — the app now deploys as a single service (the Go
+  server serves the SPA *and* the API on one port), so the domain can't be
+  mis-routed and client routes survive a hard refresh (`/signin`, `/repos`,
+  `/browse/...`). This also makes the v1.1.0 large-PDF fix reliably reachable.
+
+[1.1.1]: https://github.com/joaovrmoraes/gitmark/releases/tag/v1.1.1
+
 ## [1.1.0] — 2026-06-26
 
 ### Added
