@@ -5,6 +5,15 @@ All notable changes to GitMark are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] — 2026-06-26
+
+### Fixed
+- **OAuth callback** is now derived from `FRONTEND_URL` in the single-origin
+  deploy, making the redirect URI deterministic and immune to reverse-proxy
+  header quirks (`X-Forwarded-Proto`/`Host`).
+
+[1.1.2]: https://github.com/joaovrmoraes/gitmark/releases/tag/v1.1.2
+
 ## [1.1.1] — 2026-06-26
 
 ### Fixed
