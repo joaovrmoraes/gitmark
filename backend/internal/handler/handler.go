@@ -276,6 +276,13 @@ func (h *Handler) RequireSession(c *gin.Context) {
 }
 
 func (h *Handler) callbackURL(c *gin.Context) string {
+	// Single-origin deploy (WEB_DIR set): the app's public URL is FRONTEND_URL,
+	// so derive the callback from it — deterministic and immune to proxy header
+	// quirks. Dev (separate frontend) falls back to the request scheme/host so
+	// the backend's own :8080 callback is used.
+	if h.cfg.WebDir != "" && h.cfg.FrontendURL != "" {
+		return strings.TrimRight(h.cfg.FrontendURL, "/") + "/auth/callback"
+	}
 	scheme := "http"
 	if h.secure(c) {
 		scheme = "https"
