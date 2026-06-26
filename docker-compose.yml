@@ -1,29 +1,20 @@
-# Single-domain deployment on Coolify.
+# Single-service deployment. The Go app serves the SPA and the API on :8080,
+# so there's exactly one thing for Coolify to route the domain to — which is
+# what keeps deploys from intermittently 404ing.
 #
-# The `web` (nginx) serves the SPA and reverse-proxies /auth, /proxy, /me and
-# /healthz to the internal `api`. Only `web` is exposed publicly — the domain
-# is pinned to it via Coolify's SERVICE_FQDN_* convention, so the bare domain
-# always hits nginx (which serves index.html), never the Go backend directly.
+# In Coolify: point https://gitmark.joaovrmoraes.dev at the `app` service,
+# container port 8080.
 services:
-  api:
-    build: ./backend
+  app:
+    build: .
     environment:
       PORT: "8080"
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      WEB_DIR: /web
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       OAUTH_SCOPE: ${OAUTH_SCOPE:-read:user repo}
+      SERVICE_FQDN_APP_8080: https://gitmark.joaovrmoraes.dev
     expose:
       - "8080"
-    restart: unless-stopped
-
-  web:
-    build: ./frontend
-    environment:
-      # Coolify pins the public domain to THIS service, on its port 80.
-      SERVICE_FQDN_WEB_80: https://gitmark.joaovrmoraes.dev
-    depends_on:
-      - api
-    expose:
-      - "80"
     restart: unless-stopped

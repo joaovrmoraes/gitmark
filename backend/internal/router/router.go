@@ -33,5 +33,11 @@ func New(h *handler.Handler, cfg config.Config) *gin.Engine {
 		authed.GET("/proxy/raw", h.Raw)
 	}
 
+	// Serve the built SPA (single-origin deploy) when WEB_DIR is set. Any
+	// non-API path falls back to index.html so client routes survive refresh.
+	if cfg.WebDir != "" {
+		r.NoRoute(spaHandler(cfg.WebDir))
+	}
+
 	return r
 }

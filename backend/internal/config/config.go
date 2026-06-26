@@ -19,6 +19,9 @@ type Config struct {
 	// FrontendURL is where users land after a successful login, and the
 	// allowed CORS origin.
 	FrontendURL string
+	// WebDir is the built frontend served by the same server (single-origin
+	// deployment). Empty disables static serving (API-only, e.g. local dev).
+	WebDir string
 }
 
 func Load() Config {
@@ -30,6 +33,7 @@ func Load() Config {
 		OAuthScope:         env("OAUTH_SCOPE", "read:user repo"),
 		GitHubAPI:          env("GITHUB_API", "https://api.github.com"),
 		FrontendURL:        env("FRONTEND_URL", "http://localhost:3000"),
+		WebDir:             env("WEB_DIR", ""),
 	}
 }
 

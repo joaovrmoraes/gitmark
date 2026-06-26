@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.git
+**/*.webm
+**/.demo
+**/.demo-mobile
+backend/.env
+frontend/.env
+frontend/public/pdf.worker.min.mjs

@@ -1,60 +1,47 @@
-# Deploying GitMark (Coolify · single domain)
+# Deploying GitMark (Coolify · single service)
 
-Target: **https://gitmark.joaovrmoraes.dev** — frontend and backend behind one
-domain. `nginx` serves the SPA and reverse-proxies `/auth`, `/proxy`, `/me`,
-`/healthz` to the Go backend, so the session cookie stays `SameSite=Lax; Secure`
-and there's no CORS to worry about.
+Target: **https://gitmark.joaovrmoraes.dev**
 
-## 1. GitHub OAuth App (production)
+GitMark deploys as **one container**: the Go server serves the built SPA *and*
+the API on port `8080`. With a single service there's nothing for the reverse
+proxy to disambiguate, so the domain always lands on the app and client-side
+routes survive refresh — this is what fixed the recurring "404 after deploy".
 
-In the GitMark OAuth App (github.com/settings/developers):
+## 1. GitHub OAuth App
 
-- **Authorization callback URL:** add `https://gitmark.joaovrmoraes.dev/auth/callback`
-  (GitHub allows multiple callback URLs — keep the localhost one for dev).
+- **Authorization callback URL:** `https://gitmark.joaovrmoraes.dev/auth/callback`
 - **Homepage URL:** `https://gitmark.joaovrmoraes.dev`
-- ⚠️ **Regenerate the client secret** (the dev one was shared in chat). Use the
-  new value in the env vars below.
+- Keep the client secret **only** in Coolify env (never in git).
 
-## 2. DNS
+## 2. Coolify
 
-Point `gitmark.joaovrmoraes.dev` → your VPS IP (A record). Coolify will issue
-the Let's Encrypt certificate automatically.
+Deploy this repo with the **Docker Compose** build pack (`docker-compose.yml`,
+which builds the root `Dockerfile`). Then:
 
-## 3. Coolify
+- Point the domain `https://gitmark.joaovrmoraes.dev` at the **`app`** service,
+  container port **8080**. (There is only one service now.)
+- Coolify terminates TLS and forwards `X-Forwarded-Proto=https`; the app uses it
+  to set Secure cookies and build the OAuth callback URL.
 
-Deploy this repo with the **Docker Compose** build pack (it reads
-`docker-compose.yml`). Then:
-
-- Attach the domain `https://gitmark.joaovrmoraes.dev` to the **`web`** service
-  (container port **80**). Coolify terminates TLS and forwards
-  `X-Forwarded-Proto=https` — the backend reads it to set `Secure` cookies and
-  build the right OAuth callback URL.
-- The **`api`** service stays internal (no public port) — `web` reaches it as
-  `http://api:8080` on the compose network.
-
-### Environment variables (set in Coolify)
+### Environment variables
 
 | Var | Value |
 |---|---|
 | `FRONTEND_URL` | `https://gitmark.joaovrmoraes.dev` |
-| `GITHUB_CLIENT_ID` | `Ov23liHRKjZROLlswddK` |
-| `GITHUB_CLIENT_SECRET` | *(the regenerated secret)* |
+| `GITHUB_CLIENT_ID` | your OAuth app client id |
+| `GITHUB_CLIENT_SECRET` | your OAuth app client secret |
 | `OAUTH_SCOPE` | `read:user repo` |
 
-The frontend needs no runtime env — `VITE_API_URL` is baked empty at build time
-(`.env.production`), so it calls the API same-origin.
+(`WEB_DIR=/web` and `PORT=8080` are already baked into the image.)
 
-## 4. Verify
+## 3. Verify
 
-1. Open `https://gitmark.joaovrmoraes.dev` → **Continue with GitHub** → authorize.
-2. You should land on `/repos` with your real repos (private included).
-3. Open a vault → the reader should page-turn and switch themes.
+- `https://gitmark.joaovrmoraes.dev/` → the sign-in page (not 404)
+- Hard-refresh on `/repos` or `/signin` → still loads (SPA fallback)
+- **Continue with GitHub** → authorize → land on `/repos`
 
-## Notes / future
+## Notes
 
-- **Sessions are in-memory** — a redeploy/restart logs everyone out. Fine for
-  now; move to Redis when it matters (the cache + session stores were written to
-  swap easily).
-- If the proxy in front of `web` does **not** send `X-Forwarded-Proto=https`,
-  the OAuth callback would be built as `http://…` and fail — Coolify/Traefik
-  sets it by default, so this is just a heads-up.
+- Sessions are in-memory (7-day TTL) — a redeploy logs everyone out. Fine for
+  now; move to Redis when it matters.
+- Local prod-like run: `docker compose up --build` then open `http://localhost:8080`.
